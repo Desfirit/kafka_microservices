@@ -1,4 +1,5 @@
 import os
+
 from flask import Flask, request
 import postgre_utils as utils
 import postgre_create as create_utils
@@ -20,6 +21,24 @@ def comma_separated_params_to_list(param):
         if val:
             result.append(val)
     return result
+
+def is_scheme_created(postgre):
+    postgre.execute("SELECT * FROM information_schema.tables WHERE table_name = 'groups';")
+    records = postgre.fetchall()
+
+    if records:
+        return True
+    else:
+        return False
+
+def prepare_database(postgre):
+    app.logger.info("Creating scheme")
+    create_utils.create_scheme(postgre)
+    app.logger.info("Created scheme")
+
+    app.logger.info("Filling database")
+    create_utils.fill_scheme(postgre)
+    app.logger.info("Filled database")
 
 @app.route("/api/students", methods=["GET"])
 def get_students():
@@ -68,14 +87,16 @@ def get_courses():
 
     return res
 
-def is_scheme_created(postgre):
-    postgre.execute("SELECT * FROM information_schema.tables WHERE table_name = 'groups';")
-    records = postgre.fetchall()
+@app.route("/api/fill-database", methods=["POST"])
+def fill_database():
+    args = request.args
 
-    if records:
-        return True
-    else:
-        return False
+    if is_scheme_created(postgre):
+        app.logger.info("Scheme already created")
+    elif "create" in args:
+        prepare_database(postgre)
+
+    return "Mger"
 
 def try_fetch(url):
     while True:
@@ -89,23 +110,9 @@ def try_fetch(url):
             app.logger.info(f"Fetching {url} failed")
         time.sleep(0.5)
 
-def prepare_database(postgre):
-    app.logger.info("Creating scheme")
-    create_utils.create_scheme(postgre)
-    app.logger.info("Created scheme")
-
-    app.logger.info("Filling database")
-    create_utils.fill_scheme(postgre)
-    app.logger.info("Filled database")
-
 if __name__ == "__main__":
     app.logger.info("Connecting to postgres")
     postgre = utils.get_postgre()
     app.logger.info("Connected to postgres")
-
-    if is_scheme_created(postgre):
-        app.logger.info("Scheme already created. Simple start")
-    else:
-        prepare_database(postgre)
 
     app.run(host="0.0.0.0", port=os.environ["LOCAL_SERVICES_PORT"])
