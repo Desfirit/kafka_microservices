@@ -1,4 +1,4 @@
-import mongo_utils as mongo
+import mongo_utils as mongo_mg
 import kafka_utils as kafk
 
 import os
@@ -30,16 +30,15 @@ class DeparmentsMessageProcessor:
 
         message = message['payload']
 
-        if operation == "c":
-            mongo.update_one({"id": message["after"]["institute_fk"]}, 
-                {"$push": {"departments": {"id": message["after"]["id"], "name": message["after"]["name"]}}})
+        if operation == "c" or operation == "r":
+            if(not mongo_mg.get_departments(mongo, message["after"]["id"])):
+                mongo_mg.create_departments(mongo, message["after"]["id"], message["after"]["name"], message["after"]["institute_fk"])
         elif operation == "u":
             mongo.update_one({"departments.id": message["after"]["id"]}, 
                 {"$set": {"departments.$[dep].name": message["after"]["name"]}},
                 array_filters=[ {"dep.id": message["after"]["id"]}])
         elif operation == "d":
-            mongo.update_one({"departments.id": message["before"]["id"]}, 
-                {"$pull": {"departments": {"id": message["before"]["id"]}}})
+            mongo_mg.delete_departments(message["before"]["id"])
         else:
             logging.info(f"Wrong operation type: {operation}, 'MGER' expected")
 
@@ -49,17 +48,17 @@ class SpecialitiesMessageProcessor:
 
         message = message['payload']
 
-        if operation == "c":
-            mongo.update_one({"departments.id": message["after"]["department_fk"]}, 
-                {"$push": {"departments.$[dep].specs": {"id": message["after"]["id"], "name": message["after"]["name"]}}}, 
-                array_filters= [ {"dep.id": message["after"]["department_fk"]}])
+        if operation == "c" or operation == "r":
+            if(not mongo_mg.get_specialitites(mongo, message["after"]["id"])):
+                mongo_mg.create_specs(mongo, message["after"]["id"], message["after"]["name"], message["after"]["department_fk"])
         elif operation == "u":
-            mongo.update_one({"departments.specs.id": message["after"]["id"]}, 
-                {"$set": {"departments.$.specs.$[spec].name": message["after"]["name"]}}, 
-                array_filters= [ {"spec.id": message["after"]["id"]}])
+            #mongo.update_one({"departments.specs.id": message["after"]["id"]}, 
+            #    {"$set": {"departments.$.specs.$[spec].name": message["after"]["name"]}}, 
+            #    array_filters= [ {"spec.id": message["after"]["id"]}])
+            mongo_mg.delete_specs(mongo, message["before"]["id"])
+            mongo_mg.create_specs(mongo, message["after"]["id"], message["after"]["name"], message["after"]["department_fk"])
         elif operation == "d":
-            mongo.update_one({"departments.specs.id": message["before"]["id"]}, 
-                {"$pull": {"departments.$.specs": {"id": message["before"]["id"]}}})
+            mongo_mg.delete_specs(message["before"]["id"])
         else:
             logging.info(f"Wrong operation type: {operation}, 'MGER' expected")
 
@@ -69,17 +68,17 @@ class CoursesMessageProcessor:
 
         message = message['payload']
 
-        if operation == "c":
-            mongo.update_one({"departments.id": message["after"]["department_fk"]}, 
-                {"$push": {"departments.$[dep].courses": {"id": message["after"]["id"], "name": message["after"]["name"]}}}, 
-                array_filters= [ {"dep.id": message["after"]["department_fk"]}])
+        if operation == "c" or operation == "r":
+            if(not mongo_mg.get_courses(mongo, message["after"]["id"])):
+                mongo_mg.create_courses(mongo, message["after"]["name"], message["after"]["id"], message["after"]["department_fk"])
         elif operation == "u":
-            mongo.update_one({"departments.courses.id": message["after"]["id"]}, 
-                {"$set": {"departments.$.courses.$[crs].name": message["after"]["name"]}}, 
-                array_filters= [ {"crs.id": message["after"]["id"]}])
+            #mongo.update_one({"departments.courses.id": message["after"]["id"]}, 
+            #    {"$set": {"departments.$.courses.$[crs].name": message["after"]["name"]}}, 
+            #    array_filters= [ {"crs.id": message["after"]["id"]}])
+            mongo_mg.delete_courses(mongo, message["before"]["id"])
+            mongo_mg.create_courses(mongo, message["after"]["name"], message["after"]["id"], message["after"]["department_fk"])
         elif operation == "d":
-            mongo.update_one({"departments.courses.id": message["before"]["id"]},
-                {"$pull": {"departments.$.courses": {"id": message["before"]["id"]}}})
+            mongo_mg.delete_courses(mongo, message["before"]["id"])
         else:
             logging.info(f"Wrong operation type: {operation}, 'MGER' expected")
 
@@ -98,7 +97,7 @@ class MessageProcessorFactory:
 
 if __name__ == "__main__":
     logging.info("Connecting to mongo...")
-    mongo_client = mongo.get_mongo()
+    mongo_client = mongo_mg.get_mongo()
     logging.info("Connected to mongo")
 
     mongo_client = mongo_client["mirea"]["institutes"]

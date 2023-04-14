@@ -152,8 +152,8 @@ services:
       - discovery.type=single-node
     networks:
       - mger
-    #ports:
-    #  - 54321:9200
+    ports:
+      - 54321:9200
 
   neo4j:
     image: neo4j
